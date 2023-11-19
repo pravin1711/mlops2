@@ -16,7 +16,8 @@ def sum(x,y):
 def pred_model():
     js = request.get_json()
         
-    image = np.array(js['image']).reshape(1, -1)
+    image = js['image']
+  
     model = joblib.load('Models/svm_gamma:0.0005_C:1.joblib')
     predict = model.predict([image])
     return str(predict)
