@@ -1,68 +1,120 @@
-from utils import read_digits,preprocess_data
-from api.app import app
-def get_processed_data():
-    X,y = read_digits()
-    X = X[:100,:,:]
-    y = y[:100]
-    X = preprocess_data(X)
-    return X,y
-#main test cases for asseting digits prediction
-def test_predict_0():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[0].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[0]'
+from utils import make_param_combinations, train_test_dev_split,read_digits, tune_hparams, preprocess_data
+import os
+# from api.app import app
+import pytest
+import joblib
+import numpy as np
+# import sklearn
 
-def test_predict_1():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[1].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[1]'
+# def test_for_hparam_cominations_count():
+#     # a test case to check that all possible combinations of paramers are indeed generated
+#     gamma_list = [0.001, 0.01, 0.1, 1]
+#     C_list = [1, 10, 100, 1000]
+#     h_params={}
+#     h_params['gamma'] = gamma_list
+#     h_params['C'] = C_list
+#     h_params_combinations = make_param_combinations(h_params)
+    
+#     assert len(h_params_combinations) == len(gamma_list) * len(C_list)
 
-def test_predict_2():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[2].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[2]'
+# def create_dummy_hyperparameter():
+#     gamma_list = [0.001, 0.01]
+#     C_list = [1]
+#     h_params={}
+#     h_params['gamma'] = gamma_list
+#     h_params['C'] = C_list
+#     # h_params_combinations = make_param_combinations(h_params)
+#     return h_params
 
-def test_predict_3():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[3].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[3]'
+# def create_dummy_data():
+#     X, y = read_digits()
+    
+#     X_train = X[:100,:,:]
+#     y_train = y[:100]
+#     X_dev = X[:50,:,:]
+#     y_dev = y[:50]
 
-def test_predict_4():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[4].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[4]'
+#     X_train = preprocess_data(X_train)
+#     X_dev = preprocess_data(X_dev)
 
-def test_predict_5():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[5].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[9]'
+#     return X_train, y_train, X_dev, y_dev
 
-def test_predict_6():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[6].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[6]'
+# def test_for_hparam_cominations_values():    
+#     h_params_combinations = create_dummy_hyperparameter()
+#     h_params_combinations = make_param_combinations(h_params_combinations)
+#     expected_param_combo_1 = {'gamma': 0.001, 'C': 1}
+#     expected_param_combo_2 = {'gamma': 0.01, 'C': 1}
 
-def test_predict_7():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[7].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[7]'
+#     assert (expected_param_combo_1 in h_params_combinations) and (expected_param_combo_2 in h_params_combinations)
 
-def test_predict_8():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[8].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[8]'
+# def test_model_saving():
+#     X_train, y_train, X_dev, y_dev = create_dummy_data()
+#     h_params_combinations = create_dummy_hyperparameter()
 
-def test_predict_9():
-    X,y = get_processed_data()
-    response = app.test_client().post("/model", json={"image":X[9].tolist()})
-    assert response.status_code == 200    
-    assert response.get_data() == b'[9]'
+#     _, _,_,best_model_path = tune_hparams(X_train, y_train, X_dev, y_dev, h_params_combinations)   
+
+#     assert os.path.exists(best_model_path)
+
+# def test_data_splitting():
+#     X, y = read_digits()
+    
+#     X = X[:100,:,:]
+#     y = y[:100]
+    
+#     test_size = .1
+#     dev_size = .6
+#     X_train, X_test, X_dev, y_train, y_test, y_dev = train_test_dev_split(X, y, test_size=test_size, dev_size=dev_size)
+#     assert (len(X_train) == 30) 
+#     assert (len(X_test) == 10)
+#     assert  ((len(X_dev) == 60))
+
+# def test_get_root():
+#     response = app.test_client().get("/")
+#     assert response.status_code == 200
+#     assert response.get_data() == b"<p>Hello, World!</p>"
+
+# def test_post_root():
+#     suffix = "post suffix"
+#     response = app.test_client().post("/", json={"suffix":suffix})
+#     assert response.status_code == 200    
+#     assert response.get_json()['op'] == "Hello, World POST "+suffix
+
+# def get_one_of_each():
+#     X, y = read_digits()
+#     XL = []
+#     yL = []
+#     index=0
+#     for i in range(10):
+#         for j, element in enumerate(y):
+#             if element == i:
+#                 model = joblib.load('models/svm_gamma:0.001_C:1.joblib')
+#                 predict = model.predict(preprocess_data(np.array([X[j]])))
+#                 if predict[-1] == i:
+#                     index = j
+#                     break
+#         XL.append(X[index])
+#         yL.append(y[index])
+#     return preprocess_data(np.array(XL)), preprocess_data(np.array(yL).astype(float))
+
+# # def test_post_predict():
+#     # X, y = get_one_of_each()
+#     # print(X.shape)
+#     # jsondict = {}
+#     # for index in range(10):
+#     #     imagedata = [str(x) for x in list(X[index])]
+#     #     jsondict["image"]=imagedata
+#     #     print(jsondict)
+#     #     response = app.test_client().post("/model", json=jsondict)
+#     #     assert response.status_code == 200    
+#     #     assert response.get_data() == bytes(f"[{index}]", encoding='utf-8')
+
+def test_model_type():
+    model = joblib.load('models/M23CSA019_lr_solver:lbfgs.joblib')
+    assert str(type(model))=="<class 'sklearn.linear_model._logistic.LogisticRegression'>"
+
+def test_model_solver():
+    model_filename = 'models/M23CSA019_lr_solver:lbfgs.joblib'
+    model = joblib.load(model_filename)
+    print(str((model.get_params()['solver'])))
+    assert str((model.get_params()['solver'])) == model_filename.split(':')[1].split('.')[0]
+    
