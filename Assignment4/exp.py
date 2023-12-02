@@ -12,83 +12,70 @@ hand-written digits, from 0-9.
 # License: BSD 3 clause
 
 # Import datasets, classifiers and performance metrics
-from sklearn import metrics, svm
+from sklearn import metrics
+from utils import preprocess_data, make_param_combinations, read_digits,predict_and_eval,train_test_dev_split, tune_hparams, train_model
+from pandas import DataFrame, set_option
 
-from utils import preprocess_data, split_data, train_model, read_digits, predict_and_eval, train_test_dev_split, get_hyperparameter_combinations, tune_hparams
-from joblib import dump, load
-import pandas as pd
+set_option('display.max_columns', 40)
 
-num_runs  = 1
-# 1. Get the dataset
-X, y = read_digits()
+gamma_range = [0.0001, 0.0005, 0.001, 0.01, 0.1]
+C_range = [0.1,1,10,100]
+svm_param_list_dict = {'gamma':gamma_range,'C':C_range}
 
-# 2. Hyperparameter combinations
-classifier_param_dict = {}
-# 2.1. SVM
-gamma_list = [0.0001, 0.0005, 0.001, 0.01, 0.1, 1]
-C_list = [0.1, 1, 10, 100, 1000]
-h_params={}
-h_params['gamma'] = gamma_list
-h_params['C'] = C_list
-h_params_combinations = get_hyperparameter_combinations(h_params)
-classifier_param_dict['svm'] = h_params_combinations
+max_depth_range = [5,10,20,50,100]
+tree_param_list_dict = {'max_depth':max_depth_range}
 
-# 2.2 Decision Tree
-max_depth_list = [5, 10, 15, 20, 50, 100]
-h_params_tree = {}
-h_params_tree['max_depth'] = max_depth_list
-h_params_trees_combinations = get_hyperparameter_combinations(h_params_tree)
-classifier_param_dict['tree'] = h_params_trees_combinations
+logistic_solvers = ['lbfgs', 'liblinear', 'newton-cg', 'newton-cholesky', 'sag', 'saga']
+logistic_param_list_dict= {'solver': logistic_solvers}
 
+model_type_param_list_dict = {"svm":svm_param_list_dict,"tree":tree_param_list_dict, "lr":logistic_param_list_dict}
+# model_type_param_list_dict = {"lr":logistic_param_list_dict}
 
-results = []
-test_sizes =  [0.2]
-dev_sizes  =  [0.2]
-for cur_run_i in range(num_runs):
-    
-    for test_size in test_sizes:
-        for dev_size in dev_sizes:
-            train_size = 1- test_size - dev_size
-            # 3. Data splitting -- to create train and test sets                
-            X_train, X_test, X_dev, y_train, y_test, y_dev = train_test_dev_split(X, y, test_size=test_size, dev_size=dev_size)
-            # 4. Data preprocessing
-            X_train = preprocess_data(X_train)
-            X_test = preprocess_data(X_test)
-            X_dev = preprocess_data(X_dev)
+# test_size_ranges = [0.1, 0.2, 0.3]
+# dev_size_ranges = [0.1, 0.2, 0.3]
+test_size_ranges = [0.2]
+dev_size_ranges = [0.2]
+split_size_list_dict = {'test_size':test_size_ranges,'dev_size':dev_size_ranges}
 
-            binary_preds = {}
-            model_preds = {}
-            for model_type in classifier_param_dict:
-                current_hparams = classifier_param_dict[model_type]
-                best_hparams, best_model_path, best_accuracy  = tune_hparams(X_train, y_train, X_dev, 
-                y_dev, current_hparams, model_type)        
-            
-                # loading of model         
-                best_model = load(best_model_path) 
+# Read digits: Create a classifier: a support vector classifier
+x_digits,y_digits = read_digits()
 
-                test_acc, test_f1, predicted_y = predict_and_eval(best_model, X_test, y_test)
-                train_acc, train_f1, _ = predict_and_eval(best_model, X_train, y_train)
-                dev_acc = best_accuracy
+#Find best model for given gamma and C range
 
-                print("{}\ttest_size={:.2f} dev_size={:.2f} train_size={:.2f} train_acc={:.2f} dev_acc={:.2f} test_acc={:.2f}, test_f1={:.2f}".format(model_type, test_size, dev_size, train_size, train_acc, dev_acc, test_acc, test_f1))
-                cur_run_results = {'model_type': model_type, 'run_index': cur_run_i, 'train_acc' : train_acc, 'dev_acc': dev_acc, 'test_acc': test_acc}
-                results.append(cur_run_results)
-                binary_preds[model_type] = y_test == predicted_y
-                model_preds[model_type] = predicted_y
-                
-                print("{}-GroundTruth Confusion metrics".format(model_type))
-                print(metrics.confusion_matrix(y_test, predicted_y))
+splits = make_param_combinations(split_size_list_dict)
+# split = {'test_size':0.2,'dev_size':0.2}
+iterations = 1
+for split in splits:
+    results = []
+    for run in range(iterations):
+        # Data splitting: Split data into train, test and dev as per given test and dev sizes
+        X_train, X_test, X_dev, y_train, y_test, y_dev = train_test_dev_split(x_digits,y_digits,shuffle=True, **split)
 
+        # Data preprocessing
+        X_train = preprocess_data(X_train)
+        X_test = preprocess_data(X_test)
+        X_dev = preprocess_data(X_dev)
 
-print("svm-tree Confusion metrics".format())
-print(metrics.confusion_matrix(model_preds['svm'], model_preds['tree']))
+        for model_type in model_type_param_list_dict:
+            # print(f"Current model: {model_type}")
+            best_hparams,best_model, best_accuracy,best_model_path =  tune_hparams(X_train,y_train,X_dev,y_dev,model_type_param_list_dict[model_type],model_type=model_type)
+            _,train_acc = predict_and_eval(best_model,X_train,y_train,c_report=False,c_matrix=False)
+            _,test_acc = predict_and_eval(best_model,X_test,y_test,c_report=False,c_matrix=False)
+            _,dev_acc = predict_and_eval(best_model,X_dev,y_dev,c_report=False,c_matrix=False)
 
-print("binarized predictions")
-print(metrics.confusion_matrix(binary_preds['svm'], binary_preds['tree'], labels=[True, False]))
-print("binarized predictions -- normalized over true labels")
-print(metrics.confusion_matrix(binary_preds['svm'], binary_preds['tree'], labels=[True, False] , normalize='true'))
-print("binarized predictions -- normalized over pred  labels")
-print(metrics.confusion_matrix(binary_preds['svm'], binary_preds['tree'], labels=[True, False] , normalize='pred'))
-        
-# print(pd.DataFrame(results).groupby('model_type').describe().T)
-                
+            # print("Test size=%g, Dev size=%g, Train_size=%g, Train_acc=%.4f, Test_acc=%.4f, Dev_acc=%.4f" % (split['test_size'],split['dev_size'],1-split['test_size']-split['dev_size'],train_acc,test_acc,dev_acc) ,sep='')
+            current_run_results = [model_type,run,train_acc,dev_acc,test_acc,str(split),str({x:best_hparams[x] for x in model_type_param_list_dict[model_type]})]
+            results.append(current_run_results)
+        # print("Best hparams:= ",dict([(x,best_hparams[x]) for x in param_list_dict.keys()]))
+
+        # Getting model predictions on test set
+        # Predict the value of the digit on the test subset
+
+        # predicted,best_accuracy = predict_and_eval(best_model,X_test,y_test,c_report=False,c_matrix=False)
+        # print("Test Accuracy:",best_accuracy)
+
+header = ["Model_type","Run","train_acc","dev_acc","test_acc","split","params"]
+results_df = DataFrame(results,columns=header)
+stats = results_df.groupby("Model_type")
+print(results_df)
+print(stats["test_acc"].agg(['mean', 'std']))
