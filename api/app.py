@@ -22,7 +22,7 @@ def load_model():
     model_lr = joblib.load("M23CSA010_lr_solver:lbfgs.joblib")
     return model_svm,model_tree,model_lr
 
-@app.route("/model/<type>", methods=['POST'])
+@app.route("/predict/<type>", methods=['POST'])
 def pred_model(type):
     if(type=='svm'):
         model = load_model()[0]
@@ -30,8 +30,7 @@ def pred_model(type):
         model = load_model()[1]
     elif(type=='lr'):
         model = load_model()[2]
-    else:
-        return "Invalild model type"
+    
     
     js = request.get_json()
     image = np.array(js['image'])
