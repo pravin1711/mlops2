@@ -23,6 +23,6 @@ jobs:
       - name: Run test cases
         run:
           python exp.py
+        shell: sh
       - name: Pytest
-        run:
-          pytest
+        run: pytest
