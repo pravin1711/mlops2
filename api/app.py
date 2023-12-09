@@ -17,9 +17,9 @@ def sum(x,y):
     return str(int(x) + int(y))
 
 def load_model():
-    model_svm = joblib.load("M23CSA010_svm_gamma:0.001_C:1.joblib")
-    model_tree = joblib.load("M23CSA010_tree_max_depth:20.joblib")
-    model_lr = joblib.load("M23CSA010_lr_solver:lbfgs.joblib")
+    model_svm = joblib.load("M23CSA019_svm_gamma:0.001_C:1.joblib")
+    model_tree = joblib.load("M23CSA019_tree_max_depth:20.joblib")
+    model_lr = joblib.load("M23CSA019_lr_solver:lbfgs.joblib")
     return model_svm,model_tree,model_lr
 
 @app.route("/predict/<type>", methods=['POST'])
